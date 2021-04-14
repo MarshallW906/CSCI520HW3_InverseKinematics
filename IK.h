@@ -9,38 +9,65 @@
 
 #include <cfloat>
 
+#include <Eigen/Dense>
+
 class FK;
 class Vec3d;
 
 class IK
 {
-public:
-  // IK constructor.
-  // numIKJoints, IKJointIDs: the number of IK handle joints, and their indices (using the joint numbering as defined in the FK class).
-  // FK: pointer to an already initialized forward kinematics class.
-  // adolc_tagID: an ID used in adol-c to represent a particular function for evaluation. Different functions should have different tagIDs.
-  IK(int numIKJoints, const int * IKJointIDs, FK * fk, int adolc_tagID = 1);
+public: // util functions
+	// switch IK method in between Tikhonov regularization and PseudoInverse
+	// the IK Method is Tikhonov regularization by default.
+	void switchIKMethod();
 
-  // input: an array of numIKJoints Vec3d's giving the positions of the IK handles, current joint Euler angles
-  // output: the computed joint Euler angles; same meaning as in the FK class
-  // Note: eulerAngles is both input and output
-  void doIK(const Vec3d * targetHandlePositions, Vec3d * eulerAngles);
-
-  // IK parameters
-  int getFKInputDim() const { return FKInputDim; }
-  int getFKOutputDim() const { return FKOutputDim; }
-  int getIKInputDim() const { return FKOutputDim; }
-  int getIKOutputDim() const { return FKInputDim; }
+	// call to switch on/off sub-step IK.
+	// it's by default disabled since it's computationally much heavier
+	void switchSubStepIKOnOff();
 
 protected:
-  int numIKJoints = 0;
-  const int * IKJointIDs = nullptr;
-  FK * fk = nullptr;
-  int adolc_tagID = 0; // tagID
-  int FKInputDim = 0; // forward dynamics input dimension 
-  int FKOutputDim = 0; // forward dynamics output dimension
+	bool useTikhonovRegularization = true;
+	bool enableSubStepIK = false;
 
-  void train_adolc();
+protected:
+	void performTikhonovRegularization(
+		const Eigen::MatrixXd& J_EigenMat,      // input
+		const Eigen::VectorXd& deltaB_EigenVec, // input
+		Eigen::VectorXd& deltaTheta_EigenVec	// output
+	);
+	void performPseudoInverse(
+		const Eigen::MatrixXd& J_EigenMat,      // input
+		const Eigen::VectorXd& deltaB_EigenVec, // input
+		Eigen::VectorXd& deltaTheta_EigenVec	// output
+	);
+
+public:
+	// IK constructor.
+	// numIKJoints, IKJointIDs: the number of IK handle joints, and their indices (using the joint numbering as defined in the FK class).
+	// FK: pointer to an already initialized forward kinematics class.
+	// adolc_tagID: an ID used in adol-c to represent a particular function for evaluation. Different functions should have different tagIDs.
+	IK(int numIKJoints, const int* IKJointIDs, FK* fk, int adolc_tagID = 1);
+
+	// input: an array of numIKJoints Vec3d's giving the positions of the IK handles, current joint Euler angles
+	// output: the computed joint Euler angles; same meaning as in the FK class
+	// Note: eulerAngles is both input and output
+	void doIK(const Vec3d* targetHandlePositions, Vec3d* eulerAngles, const int maxIKIters, const double maxOneStepDistance);
+
+	// IK parameters
+	int getFKInputDim() const { return FKInputDim; }
+	int getFKOutputDim() const { return FKOutputDim; }
+	int getIKInputDim() const { return FKOutputDim; }
+	int getIKOutputDim() const { return FKInputDim; }
+
+protected:
+	int numIKJoints = 0;
+	const int* IKJointIDs = nullptr;
+	FK* fk = nullptr;
+	int adolc_tagID = 0; // tagID
+	int FKInputDim = 0; // forward dynamics input dimension 
+	int FKOutputDim = 0; // forward dynamics output dimension
+
+	void train_adolc();
 };
 
 #endif
